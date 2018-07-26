@@ -1,0 +1,66 @@
+cmake_minimum_required (VERSION 2.6)
+
+project (skr)
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/") 
+
+message(STATUS "${CMAKE_MODULE_PATH}")
+
+message("Debug build.")
+set(CMAKE_CXX_FLAGS "-g -O0 -Wall")
+
+set(CMAKE_CXX_COMPILER "g++")
+set(CMAKE_C_COMPILER "gcc")
+set(CMAKE_CXX_COMPILER_ARG1 "-std=c++0x ")
+set(CHAIN_SRC_ROOT "/Users/stefan/git/skr")
+set(CHAIN_NAME "bitcoin")
+set(MAKE_JOBS "-j2")
+
+include_directories(../src ${CHAIN_SRC_ROOT}/src ${CHAIN_SRC_ROOT}/src/config ${CHAIN_SRC_ROOT}/src/secp256k1/include
+                    ${OPENSSL_INCLUDE_DIR} ${Boost_INCLUDE_DIRS} ${LIBZMQ_INCLUDE_DIR}
+                    ${LIBEVENT_INCLUDE_DIR})
+
+find_package(OpenSSL)
+if(NOT OPENSSL_FOUND)
+  message(FATAL_ERROR "OpenSSL not found!")
+endif()
+
+find_package(LibConfig)
+if(NOT LIBCONFIG_FOUND)
+  message(FATAL_ERROR "LibConfig not found!")
+endif()
+
+find_package(libzmq)
+if(NOT LIBZMQ_FOUND)
+  message(FATAL_ERROR "libzmq not found!")
+endif()
+
+find_package(CURL)
+if(NOT CURL_FOUND)
+  message(FATAL_ERROR "libcurl not found!")
+endif()
+
+find_package(LibEvent)
+if(NOT LibEvent_FOUND)
+  message(FATAL_ERROR "libevent2 not found!")
+endif()
+
+find_package(Boost 1.36.0 COMPONENTS thread filesystem system regex program_options)
+if(NOT Boost_FOUND)
+  message(FATAL_ERROR "Boost not found!")
+endif()
+
+find_package(ZookeeperC)
+if(NOT ZOOKEEPER_FOUND)
+  message(FATAL_ERROR "libzookeeper-mt not found!")
+endif()
+
+include_directories(../src ${CHAIN_SRC_ROOT}/src ${CHAIN_SRC_ROOT}/src/config ${CHAIN_SRC_ROOT}/src/secp256k1/include
+                    ${OPENSSL_INCLUDE_DIR} ${Boost_INCLUDE_DIRS} ${LIBZMQ_INCLUDE_DIR}
+                    ${LIBEVENT_INCLUDE_DIR})
+
+file(GLOB_RECURSE LIB_SOURCES ../src/ *)
+add_library(btc STATIC ${LIB_SOURCES})
+
+file(GLOB_RECURSE TEST_SOURCES ../src/play.cpp)
+add_executable(skr ${TEST_SOURCES})
+target_link_libraries(skr btc)
