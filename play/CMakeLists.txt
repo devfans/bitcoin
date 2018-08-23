@@ -29,11 +29,24 @@ set(CHAIN_SRC_ROOT "/Users/stefan/git/skr")
 set(CHAIN_NAME "bitcoin")
 set(MAKE_JOBS "-j2")
 
+add_definitions(-DHAVE_CONFIG_H) 
+
+find_package(Boost 1.36.0 COMPONENTS thread filesystem system regex program_options)
+if(NOT Boost_FOUND)
+  message(FATAL_ERROR "Boost not found!")
+endif()
+
+
 set(BITCOIN_LIBRARIES
   "${CHAIN_SRC_ROOT}/src/libbitcoin_common.a"
   "${CHAIN_SRC_ROOT}/src/libbitcoin_consensus.a"
   "${CHAIN_SRC_ROOT}/src/libbitcoin_util.a"
-  "${CHAIN_SRC_ROOT}/src/crypto/libbitcoin_crypto_base.a")
+  "${CHAIN_SRC_ROOT}/src/libbitcoin_cli.a"
+  "${CHAIN_SRC_ROOT}/src/libbitcoin_server.a"
+  "${CHAIN_SRC_ROOT}/src/crypto/libbitcoin_crypto_base.a"
+  "${CHAIN_SRC_ROOT}/src/crypto/libbitcoin_crypto_avx2.a"
+  "${CHAIN_SRC_ROOT}/src/crypto/libbitcoin_crypto_sse41.a"
+  "${CHAIN_SRC_ROOT}/src/crypto/libbitcoin_crypto_shani.a")
 
 list(GET BITCOIN_LIBRARIES 0 BITCOIN_LIBRARIE)
 if (NOT EXISTS ${BITCOIN_LIBRARIE})
@@ -73,7 +86,15 @@ include_directories(src test ${CHAIN_SRC_ROOT}/src ${CHAIN_SRC_ROOT}/src/config 
                     ${OPENSSL_INCLUDE_DIR} ${Boost_INCLUDE_DIRS} ${LIBZMQ_INCLUDE_DIR}
                     ${LIBEVENT_INCLUDE_DIR})
 
+set(THIRD_LIBRARIES ${BITCOIN_LIBRARIES} ${OPENSSL_CRYPTO_LIBRARY} ${OPENSSL_SSL_LIBRARY} ${Boost_LIBRARIES} ${LIBCONFIGPP_LIBRARY}
+                    ${LIBZMQ_LIBRARIES} ${GLOG_LIBRARIES} ${CURL_LIBRARIES} ${ZOOKEEPER_LIBRARIES} ${KAFKA_LIBRARIES} ${LIBEVENT_LIB}
+                    ${LIBEVENT_PTHREADS_LIB} ${secp256k1_LIBRARIES} ${PTHREAD_LIBRARIES} ${MYSQL_LIB} ${GMP_LIBRARIES})
+
+
+#file(GLOB_RECURSE LIB_SOURCES /Users/stefan/git/btcp/src/*.cc /Users/stefan/git/btcp/src/rsk/*.cc)
+#add_library(btcpool STATIC ${LIB_SOURCES})
+
 file(GLOB_RECURSE TEST_SOURCES ../src/play.cpp)
 add_executable(skr ${TEST_SOURCES})
-target_link_libraries(skr ${BITCOIN_LIBRARIES})
+target_link_libraries(skr ${THIRD_LIBRARIES})
 

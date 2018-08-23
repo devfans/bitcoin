@@ -16,6 +16,7 @@
 
 #include <string>
 #include <vector>
+#include <script/standard.h>
 
 /**
  * Encode a byte sequence as a base58-encoded string.

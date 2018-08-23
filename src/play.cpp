@@ -1,17 +1,23 @@
 
-#include "skr.h"
+#include <skr.h>
 #include <iostream>
 #include <utilstrencodings.h>
+#include <uint256.h>
 
 using namespace std;
 
 void print(string str);
+
 
 int main(int argc, char* argv[])
 {
     cout << "________________________________________________________________________________" << endl;
     string cmd = "0";
     int32_t cmd_int;
+    uint64_t nbits = 0x17365a17;
+    // double diff;
+    uint256 target;
+    
     if (argc == 1) 
         goto finish;
    
