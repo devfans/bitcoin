@@ -3,6 +3,7 @@
 #include <chainparams.h>
 #include <compat.h>
 #include <consensus/merkle.h>
+#include <net.h>
 #include <miner.h>
 #include <netbase.h>
 #include <streams.h>
@@ -152,12 +153,14 @@ struct BlockTemplate {
     std::shared_ptr<CBlock> m_block;
     std::vector<uint256> m_merkle_rhss;
     CTxOut m_segwit_commitment;
+    int m_height;
 
-    BlockTemplate(CBlock&& block, CTxOut&& segwit_commitment) :
+    BlockTemplate(CBlock&& block, CTxOut&& segwit_commitment, int height) :
         m_original_coinbase_tx(block.vtx[0]), m_original_version(block.nVersion), m_original_time(block.nTime),
         m_block(std::make_shared<CBlock>(std::move(block))),
         m_merkle_rhss(BlockMerkleBranch(*m_block, 0)),
-        m_segwit_commitment(segwit_commitment) { }
+        m_segwit_commitment(segwit_commitment),
+        m_height(height) { }
 };
 
 static std::atomic<uint64_t> max_client_id;
@@ -367,6 +370,7 @@ std::vector<unsigned char> LibeventContext::EncodeBestTemplate(bool need_full_pa
     writer << block_template.second.m_block->hashPrevBlock;
     writer << block_template.second.m_original_time;
     writer << block_template.second.m_block->nBits;
+    writer << (uint32_t)block_template.second.m_height;
 
     writer << (uint8_t) block_template.second.m_merkle_rhss.size();
     for (const uint256& hash : block_template.second.m_merkle_rhss) {
@@ -428,8 +432,27 @@ std::vector<unsigned char> LibeventContext::EncodeBestTemplate(bool need_full_pa
 }
 
 void LibeventContext::BuildNewTemplate() {
+    if(!g_connman) {
+        LogPrint(BCLog::MININGSERVER, "Can not generate block template for Error: Peer-to-peer functionality missing or disabled\n");
+        return;
+    }
+
+    if (g_connman->GetNodeCount(CConnman::CONNECTIONS_ALL) == 0) {
+        LogPrint(BCLog::MININGSERVER, "Can not generate block template for Bitcoin is not connected\n");
+        return;
+    }
+
+    if (IsInitialBlockDownload()) {
+        LogPrint(BCLog::MININGSERVER, "Can not generate block template for Bitcoin is downloading blocks...");
+        return;
+    }
+
     CScript scriptDummy = CScript() << OP_TRUE;
     std::unique_ptr<CBlockTemplate> block_template = BlockAssembler(Params()).CreateNewBlock(scriptDummy);
+
+    int height = chainActive.Tip()->nHeight + 1;
+    // CScript serialized_height = CScript() << height;
+    // assert(std::equal(serialized_height.begin(), serialized_height.end(), block_template->block.vtx[0].vin[0].scriptSig.begin()));
 
     LOCK(m_cs);
     uint64_t template_timestamp = (uint64_t)GetTimeMillis();
@@ -437,7 +460,7 @@ void LibeventContext::BuildNewTemplate() {
         template_timestamp = std::max(m_templates.rbegin()->first + 1, template_timestamp);
     }
     CTxOut segwit_commitment_output(block_template->block.vtx[0]->vout.back());
-    m_templates.emplace(std::piecewise_construct, std::forward_as_tuple(template_timestamp), std::forward_as_tuple(std::move(block_template->block), std::move(segwit_commitment_output)));
+    m_templates.emplace(std::piecewise_construct, std::forward_as_tuple(template_timestamp), std::forward_as_tuple(std::move(block_template->block), std::move(segwit_commitment_output), height));
 
     std::vector<evutil_socket_t> failed_clients;
 
@@ -465,7 +488,7 @@ void LibeventContext::BuildNewTemplate() {
             }
         }
     }
-    LogPrint(BCLog::MININGSERVER, "Sent new template to %lu clients\n", clients_sent);
+    LogPrint(BCLog::MININGSERVER, "Sent new template with height %lu to %lu clients\n", height, clients_sent);
 
     for (evutil_socket_t& sock : failed_clients) {
         DisconnectAndFreeClient(m_clients.find(sock));
