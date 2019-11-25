@@ -248,7 +248,7 @@ struct LibeventContext : public CValidationInterface {
     CTransactionRef BuildHeaderVariantCoinbaseTx(const CTransactionRef& original_coinbase_tx, uint64_t client_id);
     std::vector<unsigned char> EncodeBestTemplate(bool need_full_payout);
     std::vector<unsigned char> EncodeBestTemplateHeader(uint64_t client_id);
-    void BuildNewTemplate();
+    bool BuildNewTemplate();
 
     void UpdatedBlockTip(const CBlockIndex *pindexNew, const CBlockIndex *pindexFork, bool fInitialDownload) override {
         if (fInitialDownload) return;
@@ -431,20 +431,20 @@ std::vector<unsigned char> LibeventContext::EncodeBestTemplate(bool need_full_pa
     return encoded_template;
 }
 
-void LibeventContext::BuildNewTemplate() {
+bool LibeventContext::BuildNewTemplate() {
     if(!g_connman) {
         LogPrint(BCLog::MININGSERVER, "Can not generate block template for Error: Peer-to-peer functionality missing or disabled\n");
-        return;
+        return false;
     }
 
     if (g_connman->GetNodeCount(CConnman::CONNECTIONS_ALL) == 0) {
         LogPrint(BCLog::MININGSERVER, "Can not generate block template for Bitcoin is not connected\n");
-        return;
+        return false;
     }
 
     if (IsInitialBlockDownload()) {
         LogPrint(BCLog::MININGSERVER, "Can not generate block template for Bitcoin is downloading blocks...");
-        return;
+        return false;
     }
 
     CScript scriptDummy = CScript() << OP_TRUE;
@@ -497,6 +497,8 @@ void LibeventContext::BuildNewTemplate() {
     if (m_templates.size() >= 3) {
         m_templates.erase(m_templates.begin());
     }
+
+    return true;
 }
 
 static void ReadCallback(evutil_socket_t sock, short events, void* event_ctx) {
@@ -657,7 +659,9 @@ static void ReadCallback(evutil_socket_t sock, short events, void* event_ctx) {
 
                         if (ctx->m_templates.empty()) {
                             ctx->m_have_had_clients = true;
-                            ctx->BuildNewTemplate();
+                            if (!ctx->BuildNewTemplate()) {
+                                return ctx->DisconnectAndFreeClient(client_it);
+                            }
                         }
 
                         if (client->m_flags & (uint16_t)VersionFlags::NEED_HEADER_TEMPLATE_VARIANTS) {
